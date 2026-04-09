@@ -4,6 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
 <title>Dly — Daily Calendar</title>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PWA — Web App Manifest (inline as a Blob URL, generated below)
+     The <link id="pwa-manifest"> href is set by the script block
+     at the bottom of this file after the DOM is ready.
+═══════════════════════════════════════════════════════════════ -->
+<link id="pwa-manifest" rel="manifest">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PWA — iOS / Safari "Add to Home Screen" meta tags
+     These make the app open full-screen on iPhones with no
+     browser chrome (address bar, toolbar) visible.
+═══════════════════════════════════════════════════════════════ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dly">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PWA — Apple Touch Icon
+     REPLACE THE href BELOW with your own 180×180 PNG icon URL.
+     Example: href="https://yourdomain.com/icon-180.png"
+     Or use a relative path if hosting locally: href="./icon.png"
+     The icon appears on the iOS home screen after "Add to Home Screen".
+═══════════════════════════════════════════════════════════════ -->
+<link rel="apple-touch-icon" sizes="180x180"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23000'/%3E%3Ctext x='90' y='118' font-size='90' text-anchor='middle' font-family='system-ui,sans-serif' fill='%23e8ff00'%3ED%3C/text%3E%3C/svg%3E">
+<!-- ICON PLACEHOLDER — replace the href above with your own icon URL -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PWA — Standard favicon / theme color
+═══════════════════════════════════════════════════════════════ -->
+<meta name="theme-color" content="#000000" id="pwa-theme-color">
+<meta name="description" content="Dly — Your personal daily calendar with habits, analytics and color coding."
+>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap');
 
@@ -2324,6 +2359,110 @@ document.getElementById('modal-save').onclick=()=>{
 function renderAll(){renderLegend();renderHabitMgr();renderAutomation();renderView();}
 applyLayout();initDrag();initResize();setupPaintbrush();renderAll();updateUndoBadge();
 toast('Dly — Daily Calendar ready',1800);
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     PWA BLOCK — Inline Manifest + Service Worker
+     Zero visual effect. Makes the app installable on Android (Chrome
+     "Add to Home Screen" prompt) and iOS (Safari "Add to Home Screen").
+═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+/* ── 1. INLINE WEB APP MANIFEST ─────────────────────────────────────
+   Serialised to JSON, converted to a Blob URL, and injected into the
+   <link id="pwa-manifest"> already present in <head>.
+
+   ICONS — replace ICON_SRC below with your own icon URL when ready.
+   Recommended: a 512×512 PNG hosted at a stable HTTPS URL.
+   Example:  var ICON_SRC = 'https://yourdomain.com/icons/dly-512.png';
+   For local use a relative path also works: './icon.png'
+   ───────────────────────────────────────────────────────────────── */
+var ICON_SRC = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23000'/%3E%3Ctext x='256' y='360' font-size='300' text-anchor='middle' font-family='system-ui,sans-serif' fill='%23e8ff00'%3ED%3C/text%3E%3C/svg%3E";
+// ↑ REPLACE THIS LINE with your own icon URL
+
+var manifest = {
+  name:             "Dly \u2014 Daily Calendar",
+  short_name:       "Dly",
+  description:      "Personal daily calendar with habits, analytics, and colour coding.",
+  start_url:        "./",
+  display:          "standalone",
+  orientation:      "any",
+  background_color: "#000000",
+  theme_color:      "#000000",
+  categories:       ["productivity","lifestyle"],
+  icons: [
+    { src: ICON_SRC, sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
+    // REPLACE src above with your 192×192 PNG URL for Android home screen icon
+    { src: ICON_SRC, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+    // REPLACE src above with your 512×512 PNG URL for Android splash screen
+  ]
+};
+
+try {
+  var mBlob = new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+  var mURL  = URL.createObjectURL(mBlob);
+  var mLink = document.getElementById('pwa-manifest');
+  if(mLink) mLink.href = mURL;
+} catch(e){ console.warn('[PWA] manifest blob failed:',e); }
+
+/* ── 2. SERVICE WORKER ───────────────────────────────────────────────
+   The SW is defined as a template string, converted to a Blob URL, and
+   registered. Cache-first strategy: serves the cached page when offline.
+   ───────────────────────────────────────────────────────────────── */
+if(!('serviceWorker' in navigator)) return;
+
+var CACHE_NAME = 'dly-cache-v7';
+
+var SW_SRC = [
+"const CACHE='",CACHE_NAME,"';",
+"",
+"self.addEventListener('install',function(e){",
+"  self.skipWaiting();",
+"  e.waitUntil(",
+"    caches.open(CACHE).then(function(c){",
+"      return c.add(self.location.origin+self.location.pathname).catch(function(){});",
+"    })",
+"  );",
+"});",
+"",
+"self.addEventListener('activate',function(e){",
+"  e.waitUntil(",
+"    caches.keys().then(function(keys){",
+"      return Promise.all(",
+"        keys.filter(function(k){return k!==CACHE;})",
+"            .map(function(k){return caches.delete(k);})",
+"      );",
+"    }).then(function(){return self.clients.claim();})",
+"  );",
+"});",
+"",
+"self.addEventListener('fetch',function(e){",
+"  if(e.request.method!=='GET')return;",
+"  e.respondWith(",
+"    caches.match(e.request).then(function(hit){",
+"      if(hit)return hit;",
+"      return fetch(e.request).then(function(res){",
+"        if(!res||res.status!==200||res.type==='opaque')return res;",
+"        var clone=res.clone();",
+"        caches.open(CACHE).then(function(c){c.put(e.request,clone);});",
+"        return res;",
+"      }).catch(function(){});",
+"    })",
+"  );",
+"});"
+].join('\n');
+
+try {
+  var swBlob = new Blob([SW_SRC],{type:'application/javascript'});
+  var swURL  = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swURL,{scope:'./'})
+    .then(function(r){console.log('[PWA] SW registered, scope:',r.scope);})
+    .catch(function(err){console.warn('[PWA] SW registration skipped:',err);});
+} catch(e){ console.warn('[PWA] SW blob failed:',e); }
+
+})();
 </script>
 </body>
 </html>
